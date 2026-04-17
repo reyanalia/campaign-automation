@@ -1,7 +1,10 @@
 import { PrismaClient } from "../app/generated/prisma/client";
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+import { PrismaNeonHttp } from "@prisma/adapter-neon";
+import "dotenv/config";
 
-const adapter = new PrismaBetterSqlite3({ url: "file:./dev.db" });
+const url = process.env.DATABASE_URL;
+if (!url) throw new Error("DATABASE_URL is required for seeding");
+const adapter = new PrismaNeonHttp(url, {});
 const db = new PrismaClient({ adapter });
 
 async function main() {
