@@ -1,0 +1,221 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Client {
+  id        String   @id @default(cuid())
+  name      String
+  email     String
+  company   String
+  industry  String?
+  status    String   @default("active")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  campaigns   Campaign[]
+  alertRules  AlertRule[]
+  onboardings ClientOnboarding[]
+}
+
+model CampaignTemplate {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  platform    String
+  category    String?
+  variables   String   @default("[]")
+  content     String
+  tags        String   @default("[]")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  campaigns Campaign[]
+}
+
+model Campaign {
+  id         String    @id @default(cuid())
+  name       String
+  platform   String
+  status     String    @default("draft")
+  budget     Float?
+  startDate  DateTime?
+  endDate    DateTime?
+  variables  String    @default("{}")
+  clientId   String
+  templateId String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  client     Client            @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  template   CampaignTemplate? @relation(fields: [templateId], references: [id])
+  qaRuns     QARun[]
+  executions WorkflowExecution[]
+}
+
+model QAChecklistTemplate {
+  id        String   @id @default(cuid())
+  name      String
+  platform  String
+  createdAt DateTime @default(now())
+
+  items QACheckItem[]
+  runs  QARun[]
+}
+
+model QACheckItem {
+  id           String  @id @default(cuid())
+  templateId   String
+  title        String
+  description  String?
+  checkType    String
+  autoCheckKey String?
+  order        Int     @default(0)
+
+  template QAChecklistTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+}
+
+model QARun {
+  id          String    @id @default(cuid())
+  campaignId  String
+  templateId  String
+  status      String    @default("pending")
+  createdAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  campaign Campaign            @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  template QAChecklistTemplate @relation(fields: [templateId], references: [id])
+  results  QARunResult[]
+}
+
+model QARunResult {
+  id        String  @id @default(cuid())
+  runId     String
+  itemTitle String
+  checkType String
+  status    String
+  message   String?
+
+  run QARun @relation(fields: [runId], references: [id], onDelete: Cascade)
+}
+
+model WorkflowTemplate {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  trigger     String   @default("manual")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  steps      WorkflowStep[]
+  executions WorkflowExecution[]
+}
+
+model WorkflowStep {
+  id         String  @id @default(cuid())
+  workflowId String
+  title      String
+  stepType   String
+  platform   String?
+  config     String  @default("{}")
+  order      Int     @default(0)
+
+  workflow WorkflowTemplate @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+}
+
+model WorkflowExecution {
+  id          String    @id @default(cuid())
+  workflowId  String
+  campaignId  String?
+  status      String    @default("pending")
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+  log         String    @default("[]")
+
+  workflow    WorkflowTemplate   @relation(fields: [workflowId], references: [id])
+  campaign    Campaign?          @relation(fields: [campaignId], references: [id])
+  stepResults WorkflowStepResult[]
+}
+
+model WorkflowStepResult {
+  id          String    @id @default(cuid())
+  executionId String
+  stepTitle   String
+  stepType    String
+  status      String
+  output      String?
+  error       String?
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  execution WorkflowExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+}
+
+model AlertRule {
+  id        String   @id @default(cuid())
+  clientId  String
+  name      String
+  platform  String
+  metric    String
+  operator  String
+  threshold Float
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  client Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  events AlertEvent[]
+}
+
+model AlertEvent {
+  id          String    @id @default(cuid())
+  ruleId      String
+  metric      String
+  actualValue Float
+  threshold   Float
+  message     String
+  status      String    @default("active")
+  firedAt     DateTime  @default(now())
+  resolvedAt  DateTime?
+
+  rule AlertRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+}
+
+model OnboardingSequence {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+
+  steps       OnboardingStep[]
+  onboardings ClientOnboarding[]
+}
+
+model OnboardingStep {
+  id          String  @id @default(cuid())
+  sequenceId  String
+  title       String
+  description String?
+  stepType    String  @default("manual")
+  workflowId  String?
+  order       Int     @default(0)
+
+  sequence OnboardingSequence @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+}
+
+model ClientOnboarding {
+  id          String    @id @default(cuid())
+  clientId    String
+  sequenceId  String
+  status      String    @default("in_progress")
+  currentStep Int       @default(0)
+  progress    String    @default("{}")
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  client   Client             @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  sequence OnboardingSequence @relation(fields: [sequenceId], references: [id])
+}
